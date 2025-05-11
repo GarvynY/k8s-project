@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: default
+  name: shared-data-gy
+data:
+  ACCESS_TOKEN: "cDWlSYHFFEPxIFpkrTf2ss5kAB7hOekUQ7DY3dglm4E"
+
