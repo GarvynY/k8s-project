@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: es-config-gy
+  namespace: default
+data:
+  ES_HOST: "elasticsearch-master.elastic.svc.cluster.local"
+  ES_PORT: "9200"
+  ES_SCHEME: "http"
+  ES_USERNAME: "elastic"
+  ES_PASSWORD: "elastic"
+
