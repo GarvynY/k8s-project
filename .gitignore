@@ -1,4 +1,10 @@
 # IDE & venv
 .idea/
 .venv/
+# macOS 系统文件
+.DS_Store
+
+# 包依赖文件（不需要上传到remote）
+**/vendor/**
+
 
