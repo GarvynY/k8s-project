@@ -1,12 +1,11 @@
 import re
 import time
-import random
 import logging
 from datetime import datetime, timezone
+from dateutil.relativedelta import relativedelta
 
 from mastodon import Mastodon
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from geopy.geocoders import Nominatim
 from elasticsearch8 import Elasticsearch, helpers
 
 # —— 日志配置 —— 
@@ -15,28 +14,18 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
-# —— Mastodon 凭据 —— （请替换为你的真实值）
+# —— Mastodon 凭据 —— （请替换为你的真实值） ——
 MASTODON_CLIENT_ID     = "2BFvlyAmZRT3id9ZKNJJbXD6-nPPh8jo2WJaHTmQ1bA"
 MASTODON_CLIENT_SECRET = "FQpO_BwYURSno8vbkVkk5USCZPA9SAzI_G9FUMts4bo"
 MASTODON_ACCESS_TOKEN  = "Tvx3jwk5Ilz4ixUzG_DTrNny98G4RYfQym8sVDez9F8"
 API_BASE_URL           = "https://mastodon.social"
 
-# —— 配置 —— 
-HASHTAG      = "ausvotes"
-PAGE_SIZE    = 40
-TARGET_COUNT = 300
-INDEX_NAME   = "mastodon_election_test"
+# —— 配置 ——  
+HASHTAG    = "ausvotes"
+PAGE_SIZE  = 40      # 每页抓取的条数
+INDEX_NAME = "mastodon_election_test"
 
-CITY_COORDS = {
-    "Sydney":    "-33.868820,151.209296", "Melbourne": "-37.813629,144.963058",
-    "Brisbane":  "-27.469770,153.025131", "Perth":      "-31.950527,115.860458",
-    "Adelaide":  "-34.928497,138.600739", "Canberra":  "-35.280937,149.130009",
-    "Hobart":    "-42.882137,147.327195", "Darwin":     "-12.463440,130.845642",
-    "Gold Coast":"-28.016667,153.400000"
-}
-CITY_CHOICES = list(CITY_COORDS.keys())
-
-logging.info("Initializing Mastodon client and tools")
+# —— 初始化 Mastodon 客户端 & 情感分析器 ——  
 masto = Mastodon(
     client_id=MASTODON_CLIENT_ID,
     client_secret=MASTODON_CLIENT_SECRET,
@@ -44,108 +33,118 @@ masto = Mastodon(
     api_base_url=API_BASE_URL
 )
 sentiment_analyzer = SentimentIntensityAnalyzer()
-geolocator = Nominatim(user_agent="fission_mastodon_ingest")
-
 
 def clean_content(html: str) -> str:
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', html)).strip()
 
 def contains_keyword(text: str) -> bool:
-    kws = ["ausvotes", "election", "vote", "选举", "投票"]
+    kws = ["ausvotes","election","vote","选举","投票"]
     return any(kw in text.lower() for kw in kws)
 
-def get_time_of_day(ts_iso: str) -> str:
-    h = datetime.fromisoformat(ts_iso).hour
-    return "凌晨" if h < 6 else "上午" if h < 12 else "下午" if h < 18 else "晚上"
+def format_time_of_day(dt: datetime) -> str:
+    h = dt.hour
+    return "Night"     if h < 6  else \
+           "Morning"   if h < 12 else \
+           "Afternoon" if h < 18 else \
+           "Evening"
 
-def get_day_of_week(ts_iso: str) -> str:
-    return ["周一","周二","周三","周四","周五","周六","周日"][datetime.fromisoformat(ts_iso).weekday()]
+def format_day_of_week(dt: datetime) -> str:
+    return dt.strftime('%A')
 
 def analyze_sentiment(text: str):
     vs = sentiment_analyzer.polarity_scores(text)
     s = vs["compound"]
-    return s, ("积极" if s >= 0.05 else "消极" if s <= -0.05 else "中性")
-
-def infer_location(account) -> str:
-    for f in getattr(account, "fields", []):
-        if "location" in f.get("name", "").lower():
-            val = re.sub(r',?\s*Australia$', '', f.get("value", ""))
-            for c in CITY_CHOICES:
-                if re.search(rf"\b{re.escape(c)}\b", val, re.IGNORECASE):
-                    return c
-    return random.choice(CITY_CHOICES)
-
-def geocode_location(loc: str) -> str:
-    return CITY_COORDS.get(loc, "")
+    label = "positive" if s > 0 else "negative" if s < 0 else "neutral"
+    return s, label
 
 def main():
-    logging.info("Function start")
-    rows = []
-    max_id = None
+    logging.info("=== Historical ingest start ===")
+    since_dt = datetime.now(timezone.utc) - relativedelta(months=6)
+    logging.info(f"Will fetch posts since {since_dt.isoformat()}")
 
-    # 抓取
-    fetch_start = time.time()
-    logging.info("Begin fetching posts")
-    while len(rows) < TARGET_COUNT:
-        to_fetch = min(PAGE_SIZE, TARGET_COUNT - len(rows))
-        try:
-            statuses = masto.timeline_hashtag(HASHTAG, limit=to_fetch, max_id=max_id)
-        except Exception as e:
-            logging.error(f"Fetch error: {e}")
-            break
-        if not statuses:
-            logging.info("No more statuses, exit fetch loop")
-            break
-
-        for s in statuses:
-            ts  = s.created_at.astimezone(timezone.utc).isoformat()
-            txt = clean_content(s.content)
-            if not contains_keyword(txt): continue
-            score, label = analyze_sentiment(txt)
-            loc  = infer_location(s.account)
-            geo  = geocode_location(loc)
-            rows.append({
-                "id":               str(s.id),
-                "created_at":       ts,
-                "post_time_of_day": get_time_of_day(ts),
-                "post_day_of_week": get_day_of_week(ts),
-                "content":          txt,
-                "sentiment_score":  score,
-                "emotion_label":    label,
-                "location":         loc,
-                "geolocation":      geo,
-            })
-            if len(rows) >= TARGET_COUNT:
-                break
-
-        max_id = int(statuses[-1].id) - 1
-        logging.info(f"Fetched {len(rows)}/{TARGET_COUNT}")
-        time.sleep(1)
-
-    logging.info(f"Fetch complete in {time.time()-fetch_start:.1f}s")
-
-    # 写入 ES
-    logging.info("Connecting to Elasticsearch")
     es = Elasticsearch(
-        [{"host": "elasticsearch-master.elastic.svc.cluster.local",
-          "port": 9200, "scheme": "https"}],
-        basic_auth=("elastic", "elastic"),
-        verify_certs=False,
-        ssl_show_warn=False
+        [{"host":"elasticsearch-master.elastic.svc.cluster.local","port":9200,"scheme":"https"}],
+        basic_auth=("elastic","elastic"),
+        verify_certs=False, ssl_show_warn=False
     )
 
-    logging.info("Begin bulk insert")
-    bulk_start = time.time()
-    try:
-        success, _ = helpers.bulk(es, [
-            {"_index": INDEX_NAME, "_id": r["id"], "_source": r}
-            for r in rows
-        ], stats_only=True)
-        logging.info(f"Bulk indexed {success} docs")
-    except Exception as e:
-        logging.error(f"Bulk error: {e}")
-        success = 0
+    total_indexed = 0
+    max_id = None
+    round_num = 0
 
-    logging.info(f"Bulk complete in {time.time()-bulk_start:.1f}s")
-    return {"indexed_count": success}
+    while True:
+        round_num += 1
+        logging.info(f"Round {round_num}: fetching next {PAGE_SIZE} posts (max_id={max_id})")
+        try:
+            statuses = masto.timeline_hashtag(HASHTAG, limit=PAGE_SIZE, max_id=max_id)
+        except Exception as e:
+            logging.error(f"Round {round_num}: fetch error: {e}")
+            break
+        if not statuses:
+            logging.info(f"Round {round_num}: no more statuses, exiting")
+            break
+
+        ops = []
+        times = []
+        for s in statuses:
+            dt = s.created_at.astimezone(timezone.utc)
+            if dt < since_dt:
+                logging.info(f"Round {round_num}: reached older than 6 months, stopping early")
+                statuses = []
+                break
+
+            txt = clean_content(s.content)
+            if not contains_keyword(txt):
+                continue
+
+            score, label  = analyze_sentiment(txt)
+            acct_str      = getattr(s.account, "acct", "")
+            acct_obj      = {"acct": acct_str}
+            reblogs_count = getattr(s, "reblogs_count", 0)
+            favs_count    = getattr(s, "favourites_count", 0)
+            url           = getattr(s, "url", "")
+
+            ops.append({
+                "_index": INDEX_NAME,
+                "_id":     str(s.id),
+                "_source": {
+                    "id":               str(s.id),
+                    "created_at":       dt.isoformat(),
+                    "post_time_of_day": format_time_of_day(dt),
+                    "post_day_of_week": format_day_of_week(dt),
+                    "content":          txt,
+                    "sentiment_score":  score,
+                    "emotion_label":    label,
+                    "account":          acct_obj,           # ← 以 object 形式写入
+                    "reblogs_count":    reblogs_count,
+                    "favourites_count": favs_count,
+                    "url":               url
+                }
+            })
+            times.append(dt)
+
+        if ops:
+            first, last = min(times), max(times)
+            logging.info(f"Round {round_num}: indexing {len(ops)} docs from {first.isoformat()} to {last.isoformat()}")
+            success, errors = helpers.bulk(
+                es, ops,
+                raise_on_error=False,
+                stats_only=False
+            )
+            total_indexed += success
+            if errors:
+                logging.error(f"Round {round_num}: encountered {len(errors)} errors, sample: {errors[:3]}")
+            else:
+                logging.info(f"Round {round_num}: successfully indexed {success} docs")
+        else:
+            logging.info(f"Round {round_num}: no valid docs, skipping indexing")
+
+        if not statuses:
+            break
+
+        max_id = int(statuses[-1].id) - 1
+        time.sleep(1)
+
+    logging.info(f"=== Ingest complete, total indexed: {total_indexed} ===")
+    return {"indexed_count": total_indexed}
 
