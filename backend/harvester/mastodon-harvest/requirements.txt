@@ -2,6 +2,5 @@ Mastodon.py
 vaderSentiment
 geopy
 elasticsearch8
-requests
 python-dateutil
 
