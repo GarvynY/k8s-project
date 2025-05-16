@@ -1,0 +1,25 @@
+proxy:
+  secretToken: "532b4d17048a944edf25760a2c5459cc7bab596e8ee2ce1c0f06638eedf97617"
+
+hub:
+  cookieSecret: "f62dc74b551ae61e1a0bab2b9de90c1eeffcda457298816dbbff26966f5982bc"
+
+prePuller:
+  hook:
+    enabled: false
+  continuous:
+    enabled: false
+
+singleuser:
+  storage:
+    type: none
+  image:
+    name: quay.io/jupyterhub/k8s-singleuser
+    tag: "3.0.0"
+
+ingress:
+  enabled: true
+  hosts:
+    - jupyter.elec-analysis.com
+  pathSuffix: ""
+  pathType: "Prefix"

@@ -1,0 +1,41 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notebook-demo
+  namespace: notebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notebook-demo
+  template:
+    metadata:
+      labels:
+        app: notebook-demo
+    spec:
+      containers:
+        - name: notebook
+          # 这里直接用官方 base-notebook 镜像启动 JupyterLab
+          image: jupyter/base-notebook:latest
+          # 去掉 token，允许直接访问（仅限测试）
+          command:
+            - start-notebook.sh
+            - "--NotebookApp.token="
+            - "--NotebookApp.allow_origin=*"
+          ports:
+            - containerPort: 8888
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notebook-demo
+  namespace: notebook
+spec:
+  selector:
+    app: notebook-demo
+  ports:
+    - port: 8888
+      targetPort: 8888
+  type: ClusterIP
+
