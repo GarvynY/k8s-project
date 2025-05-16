@@ -1,0 +1,6 @@
+elasticsearch>=7.17.0,<8.0.0
+requests>=2.25.1
+praw>=7.4.0,<8.0.0
+prawcore>=2.3.0,<3.0.0
+vaderSentiment>=3.3.1,<4.0.0
+
