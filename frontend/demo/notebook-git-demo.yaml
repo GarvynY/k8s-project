@@ -75,14 +75,19 @@ kind: Ingress
 metadata:
   name: notebook-git-demo
   namespace: notebook
+  annotations:
+    # 开启正则支持
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # 将 /demo/<whatever> 重写为 /<whatever>
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
     - host: jupyter.elec-analysis.com
       http:
         paths:
-          - path: /demo
-            pathType: Prefix
+          - path: /demo(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: notebook-git-demo
