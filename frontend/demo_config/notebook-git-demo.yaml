@@ -1,0 +1,125 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notebook-git-demo
+  namespace: notebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notebook-git-demo
+  template:
+    metadata:
+      labels:
+        app: notebook-git-demo
+    spec:
+      # 1) 先把工作区和安装目录都用 emptyDir 临时卷
+      volumes:
+        - name: workspace
+          emptyDir: {}
+        - name: site-packages
+          emptyDir: {}
+      # 2) 按顺序启动三个容器：
+      #    a) git-sync：拉代码
+      #    b) deps-install (initContainer)：把 wheel 包装进去
+      #    c) notebook：真正跑 JupyterLab
+      initContainers:
+        - name: git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.2.2
+          env:
+            - name: GIT_SYNC_REPO
+              value: "https://gitlab.unimelb.edu.au/ygao3631/comp_team_43.git"
+            - name: GIT_SYNC_BRANCH
+              value: "main"
+            - name: GIT_SYNC_ROOT
+              value: "/git"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_ONE_TIME
+              value: "false"
+            - name: GIT_SYNC_WAIT
+              value: "30"
+            - name: GIT_SYNC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-credentials
+                  key: username
+            - name: GIT_SYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-credentials
+                  key: password
+          volumeMounts:
+            - name: workspace
+              mountPath: /git
+        - name: deps-install
+          # 用 jupyter/base-notebook 自带 pip
+          image: jupyter/base-notebook:latest
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              # 进入到刚才 git-sync 拉下来的代码
+              cd /git/repo/frontend
+              # 把本地 deps/ 里的 wheel 安装到 site-packages 卷里
+              pip install --no-index \
+                --find-links=deps \
+                --target=/opt/conda/lib/python3.11/site-packages \
+                -r requirements.txt
+          volumeMounts:
+            - name: workspace
+              mountPath: /git
+            - name: site-packages
+              mountPath: /opt/conda/lib/python3.11/site-packages
+      containers:
+        - name: notebook
+          image: jupyter/base-notebook:latest
+          # 禁用 token，或改成你想要的
+          command:
+            - start-notebook.sh
+            - "--NotebookApp.token=comp_team_43"
+          ports:
+            - containerPort: 8888
+          volumeMounts:
+            - name: workspace
+              mountPath: /home/jovyan/work
+            # 把之前安装好的依赖挂载进来
+            - name: site-packages
+              mountPath: /opt/conda/lib/python3.11/site-packages
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notebook-git-demo
+  namespace: notebook
+spec:
+  selector:
+    app: notebook-git-demo
+  ports:
+    - port: 8888
+      targetPort: 8888
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notebook-git-demo
+  namespace: notebook
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: jupyter.elec-analysis.com
+      http:
+        paths:
+          - path: /demo(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: notebook-git-demo
+                port:
+                  number: 8888
