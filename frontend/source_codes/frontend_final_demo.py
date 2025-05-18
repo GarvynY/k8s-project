@@ -1,16 +1,4 @@
 import os
-import nltk
-
-# — NLTK 配置，写死数据目录，确保在导入 stopwords 前设置 —
-NLTK_DATA_PATH = "/home/jovyan/work/repo/frontend/source_codes/nltk_data"
-os.environ["NLTK_DATA"] = NLTK_DATA_PATH
-nltk.data.path.insert(0, NLTK_DATA_PATH)
-# 如果还没下载过 stopwords，就下载到上述目录
-nltk.download("stopwords", download_dir=NLTK_DATA_PATH, quiet=True)
-
-from nltk.corpus import stopwords
-from nltk import pos_tag
-
 import json
 import string
 import datetime
@@ -27,6 +15,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud, STOPWORDS
 from PIL import Image
+
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 import ipywidgets as widgets
 from IPython.display import display, clear_output
@@ -83,7 +73,7 @@ city_coords = {
     'Canberra':  (-35.2809, 149.1300)
 }
 
-# — 合并 NLTK 自带 + WordCloud 默认 + 自定义停用词 —
+# — 合并 sklearn 内置 + WordCloud 默认 + 自定义停用词 —
 custom_stopwords = {
     "election", "government", "campaign", "vote", "voting",
     "https", "http", "www", "com", "co", "amp", "rt", "via",
@@ -91,11 +81,10 @@ custom_stopwords = {
     "said", "says", "like", "think", "know", "also", "one", "new", "today",
     "people"
 }
-nltk_sw = set(stopwords.words('english'))
-combined_stopwords = nltk_sw.union(STOPWORDS).union(custom_stopwords)
+sklearn_sw = set(ENGLISH_STOP_WORDS)
+combined_stopwords = sklearn_sw.union(STOPWORDS).union(custom_stopwords)
 
 def fetch_filtered_data(start_date, end_date, max_docs=30000, batch_size=1000):
-    """Fetch up to max_docs posts between start_date and end_date via Scroll API."""
     query = {
         "size": batch_size,
         "query": {
@@ -143,7 +132,6 @@ def fetch_filtered_data(start_date, end_date, max_docs=30000, batch_size=1000):
     return df
 
 def prepare_map_data(df):
-    """Filter invalid coords, map city to state, return state counts & heat points."""
     df2 = df.dropna(subset=["location","latitude","longitude"]).copy()
     state_map = {
         'Sydney': 'New South Wales',   'Melbourne': 'Victoria',
@@ -157,7 +145,6 @@ def prepare_map_data(df):
     return state_counts, heat_points
 
 def draw_map(df, start_date, end_date, show_choro=True, show_heat=True):
-    """Draw choropleth and/or heatmap of posts."""
     sc, hp = prepare_map_data(df)
     print(f"Date range: {start_date} to {end_date} | Total posts: {len(df)}")
     if sc.empty:
@@ -197,7 +184,6 @@ def draw_map(df, start_date, end_date, show_choro=True, show_heat=True):
     display(m)
 
 def draw_sentiment_chart(df):
-    """Plot bar chart of post counts by state & sentiment."""
     if df.empty or "emotion_label" not in df:
         print("No sentiment data")
         return
@@ -223,21 +209,16 @@ def draw_sentiment_chart(df):
     plt.show()
 
 def draw_wordcloud(df, start_date, end_date):
-    """Generate noun word cloud from post content."""
     if df.empty or "content" not in df:
         print("No text data")
         return
     text = " ".join(df["content"].dropna().astype(str)).lower()
     text = text.translate(str.maketrans("", "", string.punctuation))
-    tagged = pos_tag(text.split())
-    nouns = [
-        w for w,t in tagged
-        if t.startswith("NN") and w.isalpha() and w not in combined_stopwords
-    ]
-    if not nouns:
+    words = [w for w in text.split() if w.isalpha() and w not in combined_stopwords]
+    if not words:
         print("No valid words")
         return
-    freqs = Counter(nouns)
+    freqs = Counter(words)
     wc = WordCloud(
         width=800, height=400, background_color="white",
         max_words=300, stopwords=combined_stopwords,
@@ -253,7 +234,6 @@ def draw_wordcloud(df, start_date, end_date):
     plt.show()
 
 def update_outputs(*_):
-    """Refresh map, sentiment chart, and word cloud when inputs change."""
     start, end = start_picker.value, end_picker.value
     if not start or not end or start > end:
         for out in (map_out, chart_out, wc_out):
@@ -272,7 +252,7 @@ def update_outputs(*_):
         clear_output(wait=True)
         draw_wordcloud(df, start, end)
 
-# — 创建并展示交互式控件 —
+# — 创建交互式控件并展示 —
 fb_blue = "#3b5998"
 before_btn = widgets.Button(description="Before Election", layout=widgets.Layout(width="150px"))
 after_btn  = widgets.Button(description="After Election",  layout=widgets.Layout(width="150px"))
