@@ -32,8 +32,7 @@ from elasticsearch8 import Elasticsearch
 warnings.filterwarnings("ignore", message=".*verify_certs=False is insecure.*")
 
 # — ensure GeoJSON exists, otherwise download it —
-
-GEOJSON_PATH = ("/home/jovyan/work/repo/frontend/source_codes/australia_states.geojson")
+GEOJSON_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_states.geojson"
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/"
     "codeforgermany/click_that_hood/"
@@ -48,6 +47,21 @@ if not os.path.exists(GEOJSON_PATH):
     print("GeoJSON download complete.")
 with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
     australia = json.load(f)
+
+# — NLTK stopwords (assume data is in ./nltk_data next to the geojson) —
+BASE_DIR = os.path.dirname(GEOJSON_PATH)
+NLTK_DATA_PATH = os.path.join(BASE_DIR, "nltk_data")
+nltk.data.path.append(NLTK_DATA_PATH)
+
+custom_stopwords = {
+    "election", "government", "campaign", "vote", "voting",
+    "https", "http", "www", "com", "co", "amp", "rt", "via",
+    "australia", "australian", "sydney", "melbourne", "nsw", "vic", "qld",
+    "said", "says", "like", "think", "know", "also", "one", "new", "today",
+    "people"
+}
+nltk_sw = set(stopwords.words('english'))
+combined_stopwords = nltk_sw.union(STOPWORDS).union(custom_stopwords)
 
 # — load mask image for word cloud —
 MASK_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_mask1.png"
@@ -75,18 +89,6 @@ city_coords = {
     'Darwin': (-12.4634, 130.8456),
     'Canberra': (-35.2809, 149.1300)
 }
-
-# — NLTK stopwords (assume already downloaded) —
-nltk.data.path.append(os.path.expanduser("~/.nltk_data"))
-custom_stopwords = {
-    "election", "government", "campaign", "vote", "voting",
-    "https", "http", "www", "com", "co", "amp", "rt", "via",
-    "australia", "australian", "sydney", "melbourne", "nsw", "vic", "qld",
-    "said", "says", "like", "think", "know", "also", "one", "new", "today",
-    "people"
-}
-nltk_sw = set(stopwords.words('english'))
-combined_stopwords = nltk_sw.union(STOPWORDS).union(custom_stopwords)
 
 def fetch_filtered_data(start_date, end_date, max_docs=30000, batch_size=1000):
     """Fetch up to max_docs posts between start_date and end_date via Scroll API."""
@@ -296,3 +298,4 @@ display(ui)
 
 select_btn(before_btn, after_btn)
 update_outputs()
+
