@@ -395,6 +395,51 @@ fission fn create --name masto-analysis-incremental --env python39x --namespace 
 
 + the same way like Mastodon Above
 
+### function and package list during Deployment
++ functions list
+~~~shell
+NAME                                                   USAGE
+bluesky-v2                                                            
+health                                                                 
+healthcm                                                 
+hello                                                              
+masto-analysis                                                             
+masto-analysis-incremental                                              
+masto-analysis-v2                                                           
+masto-es-test                                                            
+masto-harvest-unit-test                                                               
+mastodon-ingest-6m                                                                       
+mastodon-ingest-update                                 
+python39x                                             
+reddit                                              
+zy-bluesky                                           
+zy-datatrans-v2               
+~~~
+
++ packasges list
+~~~shell
+NAME                                                   USAGE
+masto-analysis-v2-pkg                                    
+zy-datatrans-v2-pkg                            
+masto-analysis-incremental-pkg                 
+masto-analysis-pkg                             
+zy-bluesky-v2-pkg                              
+mastodon-ingest-update-pkg                     
+reddit-pkg                                     
+mastodon-ingest-6m-pkg                         
+zy-bluesky-pkg                                 
+masto-harvest-unit-test-pkg                   
+masto-es-test-zy-pkg                           
+masto-es-test-pkg                              
+masto-get-zy                                   
+mas-test-hard                                 
+mas-test-pkg                                   
+python39x-d2770f74-862c-4b3a-8a08-f2b7c1d3a321 
+healthcm-3293778d-7e14-419d-879f-9fa4ca6c7139  
+health-5d03a002-b391-46a5-bdbc-479942b1c13a    
+hello-e0170c40-382e-466d-a474-3f70efc2214e    
+health-49f8e8cb-6883-4aef-8e09-65a9b61b86a7    
+~~~
 
 ### Data visualisation
 
