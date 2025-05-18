@@ -166,6 +166,75 @@ fission fn log --name mastodon-ingest-update
 
 #### BlueSky
 
+**Get data with refreshment**
+
+1. Create ES index using kibana Devtools
+
++ set portfoward to login kibana
+
+~~~shell
+kubectl port-forward service/kibana-kibana -n elastic 5601:5601
+~~~
+
++ set es index in Devtools
+
+~~~shell
+PUT bluesky_zy
+"mappings": {
+    "properties": {
+      "uri": {
+        "type": "keyword"
+      },
+      "created_at": {
+        "type": "date",
+        "format": "strict_date_time"
+      },
+      "post_time_of_day": {
+        "type": "keyword"
+      },
+      "post_day_of_week": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "standard",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "sentiment_score": {
+        "type": "float"
+      },
+      "emotion_label": {
+        "type": "keyword"
+      },
+      "author": {
+        "type": "keyword"
+      },
+      "location": {
+        "type": "keyword"
+      },
+      "geolocation": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+~~~
++ Check if it was succeeded 
+
+~~~shell
+curl -X GET -k 'https://127.0.0.1:9200/bluesky_zy?pretty' \
+-u elastic:elastic
+~~~
+
+2. Deploy the fission function and timetrigger like mastodon above
+
+
+
+
 ### Data refinement
 
 + In the first step, we only harvest the raw data with the simple data preprocessing process, but we may need data with different granularities, then some data aggregation or refinement action is needed.
@@ -324,22 +393,7 @@ fission fn create --name masto-analysis-incremental --env python39x --namespace 
 
 #### BlueSky
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
++ the same way like Mastodon Above
 
 
 ### Data visualisation
