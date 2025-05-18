@@ -32,7 +32,8 @@ from elasticsearch8 import Elasticsearch
 warnings.filterwarnings("ignore", message=".*verify_certs=False is insecure.*")
 
 # — ensure GeoJSON exists, otherwise download it —
-GEOJSON_PATH = "australia_states.geojson"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GEOJSON_PATH = os.path.join(BASE_DIR, "australia_states.geojson")
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/"
     "codeforgermany/click_that_hood/"
