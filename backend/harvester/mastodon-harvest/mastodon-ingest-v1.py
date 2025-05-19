@@ -8,24 +8,20 @@ from mastodon import Mastodon
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from elasticsearch8 import Elasticsearch, helpers
 
-# —— 日志配置 —— 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
-# —— Mastodon 凭据 —— （请替换为你的真实值） ——
 MASTODON_CLIENT_ID     = "2BFvlyAmZRT3id9ZKNJJbXD6-nPPh8jo2WJaHTmQ1bA"
 MASTODON_CLIENT_SECRET = "FQpO_BwYURSno8vbkVkk5USCZPA9SAzI_G9FUMts4bo"
 MASTODON_ACCESS_TOKEN  = "Tvx3jwk5Ilz4ixUzG_DTrNny98G4RYfQym8sVDez9F8"
 API_BASE_URL           = "https://mastodon.social"
 
-# —— 配置 ——  
 HASHTAG    = "ausvotes"
-PAGE_SIZE  = 40      # 每页抓取的条数
+PAGE_SIZE  = 40      
 INDEX_NAME = "mastodon_election_test"
 
-# —— 初始化 Mastodon 客户端 & 情感分析器 ——  
 masto = Mastodon(
     client_id=MASTODON_CLIENT_ID,
     client_secret=MASTODON_CLIENT_SECRET,
@@ -115,7 +111,7 @@ def main():
                     "content":          txt,
                     "sentiment_score":  score,
                     "emotion_label":    label,
-                    "account":          acct_obj,           # ← 以 object 形式写入
+                    "account":          acct_obj,           # account as object
                     "reblogs_count":    reblogs_count,
                     "favourites_count": favs_count,
                     "url":               url

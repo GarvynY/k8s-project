@@ -8,9 +8,6 @@ import praw
 import prawcore
 from elasticsearch import Elasticsearch, helpers
 
-# ------------------------
-# 1) 配置区域
-# ------------------------
 REDDIT_CLIENT_ID     = "52joX-SatVEUkn4_C_2SCw"
 REDDIT_CLIENT_SECRET = "SFd7h3i3Adk_8uh3VhgxHonz6iJXag"
 REDDIT_USER_AGENT    = "aus_election_scraper/0.1 by linyaozhou"
@@ -23,7 +20,6 @@ KEYWORDS = [
     'Labor', 'Liberal', 'Greens'
 ]
 
-# 如果 ES 里查不到上次运行时间，就退回到本月月初
 now = datetime.now(timezone.utc)
 SINCE_MONTH_START = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
 
@@ -45,12 +41,8 @@ ES_USER  = "elastic"
 ES_PASS  = "elastic"
 ES_INDEX = "reddit_zy"
 
-# 限时：抓取阶段最多 40 秒
 GRAB_TIME_LIMIT = float(os.environ.get('GRAB_TIME_LIMIT', '40.0'))
 
-# ------------------------
-# 2) 工具函数
-# ------------------------
 def get_time_of_day(dt):
     h = dt.hour
     if   h < 6:   return "Night"
@@ -78,7 +70,7 @@ def get_last_run_time(es_client, index_name):
         if hits:
             return datetime.fromisoformat(hits[0]["_source"]["created_at"])
     except Exception as e:
-        print("获取上次运行时间失败:", e)
+        print("error", e)
     return None
 
 # ------------------------
@@ -86,18 +78,16 @@ def get_last_run_time(es_client, index_name):
 # ------------------------
 def main(context=None, data=None):
     """
-    Fission 调用入口。
+    Fission 。
     """
     start_ts = time.time()
 
-    # 初始化 Reddit 客户端
     reddit = praw.Reddit(
         client_id=     REDDIT_CLIENT_ID,
         client_secret= REDDIT_CLIENT_SECRET,
         user_agent=    REDDIT_USER_AGENT,
         requestor_kwargs={'timeout': 10}
     )
-    # 初始化 Elasticsearch 客户端
     es = Elasticsearch(
         [ES_HOST],
         http_auth=(ES_USER, ES_PASS),
@@ -105,13 +95,10 @@ def main(context=None, data=None):
         verify_certs=False,
         ssl_show_warn=False,
     )
-    # 确保索引存在
     if not es.indices.exists(index=ES_INDEX):
         es.indices.create(index=ES_INDEX)
 
-    # 取上次运行时间
     last_time = get_last_run_time(es, ES_INDEX) or SINCE_MONTH_START
-    print(f"增量起点: {last_time.isoformat()}")
 
     records = []
     seen_ids = set()
@@ -120,18 +107,16 @@ def main(context=None, data=None):
     for kw in KEYWORDS:
         if stop_flag:
             break
-        print(f"拉取关键词 “{kw}” …")
         try:
             results = reddit.subreddit('all').search(
                 query=kw, sort='new', time_filter='all', limit=None
             )
         except prawcore.exceptions.Redirect:
-            print(f"搜索 {kw} 重定向，跳过。")
+            print(f"pass。")
             continue
 
         for post in results:
             if time.time() - start_ts > GRAB_TIME_LIMIT:
-                print("达到抓取时间上限，停止拉取新数据")
                 stop_flag = True
                 break
 
@@ -164,7 +149,6 @@ def main(context=None, data=None):
             })
             seen_ids.add(post.id)
 
-            # 展开评论
             try:
                 post.comments.replace_more(limit=None)
             except Exception as e:

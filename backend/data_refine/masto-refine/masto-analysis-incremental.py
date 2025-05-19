@@ -9,7 +9,7 @@ from dateutil import parser
 
 from elasticsearch8 import Elasticsearch, helpers
 
-# —— 日志配置 ——
+# log config
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -18,7 +18,7 @@ logging.basicConfig(
 RAW_INDEX      = "mastodon_election_raw"
 ANALYSIS_INDEX = "election_analysis"
 
-# 城市边界框 [min_lat, max_lat, min_lon, max_lon]
+#  [min_lat, max_lat, min_lon, max_lon]
 CITY_BBOX = {
     "Sydney":     [-34.0, -33.7, 150.9, 151.3],
     "Melbourne":  [-38.0, -37.5, 144.7, 145.2],
@@ -31,7 +31,7 @@ CITY_BBOX = {
     "Gold Coast": [-28.2, -27.8, 153.2, 153.5],
 }
 
-# 人口密度，用于加权抽样
+# population
 POP_DENSITY = {
     "Sydney":     4000,
     "Melbourne":  5000,
@@ -81,7 +81,7 @@ def main():
         verify_certs=False, ssl_show_warn=False
     )
 
-    # 1) 查最新分析索引时间
+    # latest timestamp
     resp = es.search(
         index=ANALYSIS_INDEX,
         size=1,
@@ -94,13 +94,12 @@ def main():
         since_ts = parser.isoparse(hits[0]["_source"]["created_at"]).astimezone(timezone.utc)
     logging.info(f"Starting update from {since_ts}")
 
-    # 2) 构造查询 new raw 文档
+    # 2) look up new raw files
     query = {"query": {"range": {"created_at": {"gt": since_ts.isoformat()}}}} if since_ts else None
 
     batch = []
     total = 0
 
-    # 3) 一定要调用 helpers.scan 并传 client=es
     scan_kwargs = dict(
         index=RAW_INDEX,
         _source=["created_at","sentiment_score","emotion_label","location"]
@@ -108,7 +107,6 @@ def main():
     if query:
         scan_kwargs["query"] = query
 
-    # 这里改成 helpers.scan(client=es, ...)
     for hit in helpers.scan(client=es, **scan_kwargs):
         src = hit["_source"]
         dt = parser.isoparse(src["created_at"]).astimezone(timezone.utc)
@@ -140,7 +138,7 @@ def main():
                 logging.error(f"Bulk insert errors: {len(errors)}; sample: {errors[:3]}")
             batch.clear()
 
-    # 写入剩下的
+    # the rest data
     if batch:
         success, errors = helpers.bulk(es, batch, raise_on_error=False, stats_only=False)
         total += success

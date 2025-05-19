@@ -1,6 +1,6 @@
 from elasticsearch import Elasticsearch, helpers
 
-# 你的ES配置
+# ES config
 
 ES_HOST  ="https://elasticsearch-master.elastic.svc.cluster.local:9200"
 ES_USER = "elastic"
@@ -9,7 +9,7 @@ OLD_INDEX = "bluesky_zy"
 NEW_INDEX = "election_v2"
 
 def filter_doc(doc):
-    # 只保留新mapping定义的字段
+    # mapping
     keys = [
         "created_at",
         "sentiment_score",
@@ -29,7 +29,7 @@ def migrate_documents():
     verify_certs=False,
     ssl_show_warn=False,
     )
-    # 使用 scan 高效遍历所有旧数据
+    # scan all history data
     results = helpers.scan(
         es,
         index=OLD_INDEX,
@@ -41,7 +41,7 @@ def migrate_documents():
     actions = []
     for doc in results:
         new_doc = filter_doc(doc["_source"])
-        # 若没有内容则跳过
+        # pass empty
         if not new_doc:
             continue
         actions.append({
@@ -49,12 +49,12 @@ def migrate_documents():
             "_source": new_doc
         })
 
-        # 每1k条bulk提交一次，节省内存
+        # commit every 1000 entries
         if len(actions) >= 1000:
             helpers.bulk(es, actions)
             actions = []
 
-    # 提交剩余数据
+    # commit the rest
     if actions:
         helpers.bulk(es, actions)
 

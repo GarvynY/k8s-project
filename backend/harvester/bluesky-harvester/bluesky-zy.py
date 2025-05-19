@@ -9,14 +9,14 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from geopy.geocoders import Nominatim
 from elasticsearch import Elasticsearch, helpers
 
-# ─── BlueSky 配置 ───
+# config
 BLUESKY_HANDLE       = "shangguanmuxian2b.bsky.social"
 BLUESKY_APP_PASSWORD = "vtgy-ybqk-kxcb-v6gt"
 SESSION_URL  = "https://bsky.social/xrpc/com.atproto.server.createSession"
 SEARCH_URL   = "https://api.bsky.social/xrpc/app.bsky.feed.searchPosts"
 
-PAGE_SIZE    = 100   # 每页最多拉取 100 条
-TARGET_COUNT = 100   # 每次运行总共拉取 100 条
+PAGE_SIZE    = 100   # each page
+TARGET_COUNT = 100   # each run
 
 SEARCH_QUERY = "ausvotes"
 
@@ -41,7 +41,7 @@ CITY_CHOICES = list(CITY_COORDS.keys())
 sentiment_analyzer = SentimentIntensityAnalyzer()
 geolocator = Nominatim(user_agent="bsky_city_extractor")
 
-# ─── Elasticsearch 配置 ───
+# ─── Elasticsearch config ───
 ES_HOST  = "https://elasticsearch-master.elastic.svc.cluster.local:9200"
 ES_USER  = "elastic"
 ES_PASS  = "elastic"
@@ -55,11 +55,11 @@ es = Elasticsearch(
     ssl_show_warn=False,
 )
 
-# ─── 状态持久化（方案 2：按历史翻页） ───
+# ─── persistence  ───
 STATE_DOC_ID = "ausvotes_state"
 
 def load_state():
-    """更改：读取上次运行存的最早时间戳 min_ts"""
+    """the earliest timestamp-- min_ts"""
     try:
         doc = es.get(index=ES_INDEX, id=STATE_DOC_ID)["_source"]
         return doc.get("min_ts")
@@ -67,7 +67,7 @@ def load_state():
         return None
 
 def save_state(min_ts):
-    """更改：保存本次运行抓到的最早时间戳"""
+    """save the earliest timestamp"""
     es.index(
         index=ES_INDEX,
         id=STATE_DOC_ID,
@@ -151,7 +151,7 @@ def fetch_posts():
         "User-Agent":    "python-requests"
     }
 
-    # 更改：读取并初始化“历史翻页”的阈值时间
+    # min or set a thredshold
     last_min_ts = load_state() or "9999-12-31T23:59:59.999Z"
     min_ts_this_run = last_min_ts
 
@@ -180,11 +180,11 @@ def fetch_posts():
 
             ts_iso = parse_iso_z(raw_ts).astimezone(timezone.utc).isoformat()
 
-            # 更改：只处理更早于上次 min_ts 的记录
+            # deal with the record earlier tha min_ts
             if ts_iso >= last_min_ts:
                 continue
 
-            # 更新本次运行的最早时间戳
+            # update timestamp
             if ts_iso < min_ts_this_run:
                 min_ts_this_run = ts_iso
 
@@ -217,7 +217,6 @@ def fetch_posts():
             break
         time.sleep(1)
 
-    # 更改：存回本次运行抓到的最早时间戳
     save_state(min_ts_this_run)
     return rows
 
@@ -235,6 +234,6 @@ def main(context=None, data=None):
     try:
         posts = fetch_posts()
         count = save_to_es(posts)
-        return f"完成：抓取并索引 {count} 条帖子到 ES 索引 '{ES_INDEX}'"
+        return f"completed： {count} in '{ES_INDEX}'"
     except Exception as e:
-        return f"错误：{e}"
+        return f"error：{e}"
