@@ -4,10 +4,7 @@ import string
 import datetime
 from collections import Counter
 import warnings
-
 import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 import requests
 import pandas as pd
 import numpy as np
@@ -15,19 +12,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud, STOPWORDS
 from PIL import Image
-
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
-
 import ipywidgets as widgets
 from IPython.display import display, clear_output
-
 import folium
 from folium.plugins import HeatMap
-
 from elasticsearch8 import Elasticsearch
 
 warnings.filterwarnings("ignore", message=".*verify_certs=False is insecure.*")
-
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # read geo file
 GEOJSON_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_states.geojson"
 GEOJSON_URL = (
@@ -44,13 +37,11 @@ if not os.path.exists(GEOJSON_PATH):
     print("GeoJSON download complete.")
 with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
     australia = json.load(f)
-
 # — load WordCloud mask picture —
 MASK_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_mask1.png"
 if not os.path.exists(MASK_PATH):
     raise FileNotFoundError(f"Mask image not found: {MASK_PATH}")
 mask_image = np.array(Image.open(MASK_PATH))
-
 # — Elasticsearch —
 es = Elasticsearch(
     ["https://elasticsearch-master.elastic.svc.cluster.local:9200"],
@@ -59,7 +50,6 @@ es = Elasticsearch(
 )
 assert es.ping(), "Failed to connect to Elasticsearch"
 print("Elasticsearch connection successful")
-
 # — city -> position  —
 city_coords = {
     'Sydney':    (-33.8688, 151.2093),
@@ -71,7 +61,6 @@ city_coords = {
     'Darwin':    (-12.4634, 130.8456),
     'Canberra':  (-35.2809, 149.1300)
 }
-
 # — sklearn + WordCloud stopwords —
 custom_stopwords = {
     "election", "government", "campaign", "vote", "voting",
@@ -129,7 +118,6 @@ def fetch_filtered_data(start_date, end_date, max_docs=30000, batch_size=1000):
         lambda loc: pd.Series(city_coords.get(loc, (None, None)))
     )
     return df
-
 def prepare_map_data(df):
     df2 = df.dropna(subset=["location","latitude","longitude"]).copy()
     state_map = {
@@ -142,7 +130,6 @@ def prepare_map_data(df):
     state_counts = df2.groupby("state").size().reset_index(name="count")
     heat_points = df2[["latitude","longitude"]].values.tolist()
     return state_counts, heat_points
-
 def draw_map(df, start_date, end_date, show_choro=True, show_heat=True):
     sc, hp = prepare_map_data(df)
     print(f"Date range: {start_date} to {end_date} | Total posts: {len(df)}")
@@ -181,7 +168,6 @@ def draw_map(df, start_date, end_date, show_choro=True, show_heat=True):
         ).add_to(m)
 
     display(m)
-
 def draw_sentiment_chart(df):
     if df.empty or "emotion_label" not in df:
         print("No sentiment data")
@@ -206,7 +192,6 @@ def draw_sentiment_chart(df):
     plt.tight_layout()
     plt.grid(axis="y")
     plt.show()
-
 def draw_wordcloud(df, start_date, end_date):
     if df.empty or "content" not in df:
         print("No text data")
@@ -231,7 +216,6 @@ def draw_wordcloud(df, start_date, end_date):
     plt.title(f"Word Cloud {start_date} to {end_date}", fontsize=18)
     plt.tight_layout(pad=0)
     plt.show()
-
 def update_outputs(*_):
     start, end = start_picker.value, end_picker.value
     if not start or not end or start > end:
@@ -259,7 +243,6 @@ choropleth_cb = widgets.Checkbox(value=True, description="Show Choropleth")
 heatmap_cb    = widgets.Checkbox(value=True, description="Show HeatMap")
 start_picker  = widgets.DatePicker(description="Start Date", value=datetime.date(2025,4,15))
 end_picker    = widgets.DatePicker(description="End Date",   value=datetime.date(2025,4,20))
-
 map_out   = widgets.Output()
 chart_out = widgets.Output()
 wc_out    = widgets.Output()
@@ -269,12 +252,10 @@ def select_btn(sel, unsel):
     sel.style.font_color    = "white"
     unsel.style.button_color = "white"
     unsel.style.font_color  = fb_blue
-
 def on_before(b):
     select_btn(before_btn, after_btn)
     start_picker.value = datetime.date(2025,3,1)
     end_picker.value   = datetime.date(2025,5,3)
-
 def on_after(b):
     select_btn(after_btn, before_btn)
     start_picker.value = datetime.date(2025,5,4)
@@ -284,7 +265,6 @@ before_btn.on_click(on_before)
 after_btn.on_click(on_after)
 for w in (start_picker, end_picker, choropleth_cb, heatmap_cb):
     w.observe(update_outputs, names="value")
-
 ui = widgets.VBox([
     widgets.HBox([before_btn, after_btn]),
     widgets.HBox([start_picker, end_picker]),
@@ -294,7 +274,6 @@ ui = widgets.VBox([
     widgets.Label("Word Cloud"),      wc_out
 ])
 display(ui)
-
 select_btn(before_btn, after_btn)
 update_outputs()
 
