@@ -8,7 +8,6 @@ from dateutil import parser
 from elasticsearch8 import Elasticsearch, helpers
 from elasticsearch8.helpers import scan
 
-# —— 日志配置 —— 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -17,7 +16,6 @@ logging.basicConfig(
 RAW_INDEX      = "mastodon_election_raw"
 ANALYSIS_INDEX = "election_analysis"
 
-# 城市边界框 [min_lat, max_lat, min_lon, max_lon]
 CITY_BBOX = {
     "Sydney":     [-34.0, -33.7, 150.9, 151.3],
     "Melbourne":  [-38.0, -37.5, 144.7, 145.2],
@@ -30,7 +28,6 @@ CITY_BBOX = {
     "Gold Coast": [-28.2, -27.8, 153.2, 153.5],
 }
 
-# 人口密度，用于加权抽样
 POP_DENSITY = {
     "Sydney":     4000,
     "Melbourne":  5000,
@@ -83,26 +80,21 @@ def main():
     total_indexed = 0
     batch = []
 
-    # 扫描原始索引所有文档
     for hit in scan(es, index=RAW_INDEX, _source=[
         "created_at","sentiment_score","emotion_label","location"
     ]):
         src = hit["_source"]
 
-        # 1) 统一解析 created_at
         dt = parser.isoparse(src["created_at"]).astimezone(timezone.utc)
         created_at = dt.isoformat()
 
-        # 2) 处理 location + geolocation
         loc = src.get("location") or ""
         if loc not in CITY_BBOX:
             loc = weighted_choice(POP_DENSITY)
         geo = sample_geo(loc)
 
-        # 3) 计算时段
         tod = time_of_day(dt)
 
-        # 准备 bulk 操作
         batch.append({
             "_index": ANALYSIS_INDEX,
             "_id":    hit["_id"],
@@ -116,7 +108,6 @@ def main():
             }
         })
 
-        # 每 500 条 flush 一次
         if len(batch) >= 500:
             success, errors = helpers.bulk(es, batch, raise_on_error=False, stats_only=False)
             total_indexed += success
@@ -124,7 +115,6 @@ def main():
                 logging.error(f"Bulk insert encountered {len(errors)} errors, sample: {errors[:3]}")
             batch = []
 
-    # 剩余不满 500 条的也写入
     if batch:
         success, errors = helpers.bulk(es, batch, raise_on_error=False, stats_only=False)
         total_indexed += success

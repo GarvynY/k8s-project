@@ -14,16 +14,15 @@ spec:
       labels:
         app: notebook-git-demo
     spec:
-      # 1) 先把工作区和安装目录都用 emptyDir 临时卷
       volumes:
         - name: workspace
           emptyDir: {}
         - name: site-packages
           emptyDir: {}
-      # 2) 按顺序启动三个容器：
-      #    a) git-sync：拉代码
-      #    b) deps-install (initContainer)：把 wheel 包装进去
-      #    c) notebook：真正跑 JupyterLab
+      #    start by order
+      #    git-sync
+      #    deps-install (initContainer)
+      #    c) notebook：JupyterLab
       initContainers:
         - name: git-sync
           image: k8s.gcr.io/git-sync/git-sync:v3.2.2
@@ -54,16 +53,14 @@ spec:
             - name: workspace
               mountPath: /git
         - name: deps-install
-          # 用 jupyter/base-notebook 自带 pip
+          # jupyter/base-notebook pip
           image: jupyter/base-notebook:latest
           command:
             - sh
             - -c
             - |
               set -e
-              # 进入到刚才 git-sync 拉下来的代码
               cd /git/repo/frontend
-              # 把本地 deps/ 里的 wheel 安装到 site-packages 卷里
               pip install --no-index \
                 --find-links=deps \
                 --target=/opt/conda/lib/python3.11/site-packages \
@@ -76,7 +73,6 @@ spec:
       containers:
         - name: notebook
           image: jupyter/base-notebook:latest
-          # 禁用 token，或改成你想要的
           command:
             - start-notebook.sh
             - "--NotebookApp.token=comp_team_43"
@@ -85,7 +81,7 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /home/jovyan/work
-            # 把之前安装好的依赖挂载进来
+            # set dependencies
             - name: site-packages
               mountPath: /opt/conda/lib/python3.11/site-packages
 ---

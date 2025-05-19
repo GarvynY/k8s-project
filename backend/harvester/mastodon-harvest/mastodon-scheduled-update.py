@@ -9,24 +9,20 @@ from mastodon import Mastodon
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from elasticsearch8 import Elasticsearch, helpers
 
-# —— 日志配置 —— 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
-# —— Mastodon 凭据 —— 
 MASTODON_CLIENT_ID     = "2BFvlyAmZRT3id9ZKNJJbXD6-nPPh8jo2WJaHTmQ1bA"
 MASTODON_CLIENT_SECRET = "FQpO_BwYURSno8vbkVkk5USCZPA9SAzI_G9FUMts4bo"
 MASTODON_ACCESS_TOKEN  = "Tvx3jwk5Ilz4ixUzG_DTrNny98G4RYfQym8sVDez9F8"
 API_BASE_URL           = "https://mastodon.social"
 
-# —— 配置 —— 
 HASHTAG    = "ausvotes"
 PAGE_SIZE  = 40
 INDEX_NAME = "mastodon_election_raw"
 
-# —— 客户端初始化 —— 
 masto = Mastodon(
     client_id=MASTODON_CLIENT_ID,
     client_secret=MASTODON_CLIENT_SECRET,
@@ -60,7 +56,6 @@ def main():
         verify_certs=False, ssl_show_warn=False
     )
 
-    # 1) 从 ES 查最新文档，取出 since_id
     res = es.search(
         index=INDEX_NAME,
         size=1,
@@ -74,7 +69,7 @@ def main():
     new_since_id = since_id or 0
     total_new = 0
 
-    # 2) 分页拉取所有 id > since_id 的新帖
+    # get new timestamp    
     while True:
         statuses = masto.timeline_hashtag(
             HASHTAG,
@@ -134,7 +129,6 @@ def main():
             else:
                 logging.info(f"Successfully indexed {success} new docs")
 
-        # 如果这一页拿满了 PAGE_SIZE，要继续分页
         if len(statuses) < PAGE_SIZE:
             break
         since_id = new_since_id

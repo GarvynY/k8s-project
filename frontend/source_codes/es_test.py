@@ -6,11 +6,11 @@ es = Elasticsearch(
     verify_certs=False
 )
 
-# 集群健康检查
+# check health
 health = es.cluster.health()
 print("Cluster health:", health["status"])
 
-# 列出所有索引（用关键字参数）
+# indexes
 alias_map = es.indices.get_alias(index="*")
 indices = list(alias_map.keys())
 print("Indices:", indices)

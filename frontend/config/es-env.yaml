@@ -1,11 +1,10 @@
 # config/es-env.yaml
 
-# 1. 静态注入 ES_HOST
 singleuser:
   extraEnv:
     ES_HOST: "https://elasticsearch-master.elastic.svc.cluster.local:9200"
 
-# 2. 从 Secret 注入 ES_USER/ES_PASS
+# get from secret
 hub:
   config:
     KubeSpawner:

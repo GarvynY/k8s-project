@@ -26,10 +26,9 @@ from folium.plugins import HeatMap
 
 from elasticsearch8 import Elasticsearch
 
-# — 屏蔽 Elasticsearch 不安全 TLS 警告 —
 warnings.filterwarnings("ignore", message=".*verify_certs=False is insecure.*")
 
-# — 确保 GeoJSON 文件存在，否则下载 —
+# read geo file
 GEOJSON_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_states.geojson"
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/"
@@ -46,13 +45,13 @@ if not os.path.exists(GEOJSON_PATH):
 with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
     australia = json.load(f)
 
-# — 加载 WordCloud 需要的 mask 图像 —
+# — load WordCloud mask picture —
 MASK_PATH = "/home/jovyan/work/repo/frontend/source_codes/australia_mask1.png"
 if not os.path.exists(MASK_PATH):
     raise FileNotFoundError(f"Mask image not found: {MASK_PATH}")
 mask_image = np.array(Image.open(MASK_PATH))
 
-# — 初始化 Elasticsearch 客户端 —
+# — Elasticsearch —
 es = Elasticsearch(
     ["https://elasticsearch-master.elastic.svc.cluster.local:9200"],
     basic_auth=("elastic", "elastic"),
@@ -61,7 +60,7 @@ es = Elasticsearch(
 assert es.ping(), "Failed to connect to Elasticsearch"
 print("Elasticsearch connection successful")
 
-# — 定义城市到经纬度的映射 —
+# — city -> position  —
 city_coords = {
     'Sydney':    (-33.8688, 151.2093),
     'Melbourne': (-37.8136, 144.9631),
@@ -73,7 +72,7 @@ city_coords = {
     'Canberra':  (-35.2809, 149.1300)
 }
 
-# — 合并 sklearn 内置 + WordCloud 默认 + 自定义停用词 —
+# — sklearn + WordCloud stopwords —
 custom_stopwords = {
     "election", "government", "campaign", "vote", "voting",
     "https", "http", "www", "com", "co", "amp", "rt", "via",
@@ -252,7 +251,7 @@ def update_outputs(*_):
         clear_output(wait=True)
         draw_wordcloud(df, start, end)
 
-# — 创建交互式控件并展示 —
+# — interactive components —
 fb_blue = "#3b5998"
 before_btn = widgets.Button(description="Before Election", layout=widgets.Layout(width="150px"))
 after_btn  = widgets.Button(description="After Election",  layout=widgets.Layout(width="150px"))

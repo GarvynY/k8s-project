@@ -10,23 +10,20 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from geopy.geocoders import Nominatim
 from elasticsearch import Elasticsearch, helpers
 
-# 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
-# ─── BlueSky 配置 ───
 BLUESKY_HANDLE       = "shangguanmuxian2b.bsky.social"
 BLUESKY_APP_PASSWORD = "vtgy-ybqk-kxcb-v6gt"
 SESSION_URL  = "https://bsky.social/xrpc/com.atproto.server.createSession"
 SEARCH_URL   = "https://api.bsky.social/xrpc/app.bsky.feed.searchPosts"
 
-# ─── 分页与批处理配置 ───
-PAGE_SIZE    = 25     # 每页API请求获取的数据量
-BATCH_SIZE   = 50     # 每批次处理的数量
-MAX_RETRIES  = 3      # 最大重试次数
-RETRY_DELAY  = 3      # 重试延迟(秒)
+PAGE_SIZE    = 25     # each page
+BATCH_SIZE   = 50     # batch size
+MAX_RETRIES  = 3      # retry
+RETRY_DELAY  = 3      # retry sec
 
 SEARCH_QUERY = "ausvotes"
 
@@ -51,7 +48,6 @@ CITY_CHOICES = list(CITY_COORDS.keys())
 sentiment_analyzer = SentimentIntensityAnalyzer()
 geolocator = Nominatim(user_agent="bsky_city_extractor")
 
-# ─── Elasticsearch 配置 ───
 ES_HOST  = "https://elasticsearch-master.elastic.svc.cluster.local:9200"
 ES_USER  = "elastic"
 ES_PASS  = "elastic"
@@ -65,11 +61,9 @@ es = Elasticsearch(
     ssl_show_warn=False,
 )
 
-# ─── 简化的状态管理 ───
 STATE_DOC_ID = "bluesky_cursor_state"
 
 def load_state():
-    """读取处理状态，仅包含分页游标和统计数据"""
     try:
         doc = es.get(index=ES_INDEX, id=STATE_DOC_ID)["_source"]
         return {
@@ -87,17 +81,17 @@ def load_state():
         }
 
 def save_state(state):
-    """保存处理状态"""
+    """save state"""
     state["last_run"] = datetime.now(timezone.utc).isoformat()
     es.index(
         index=ES_INDEX,
         id=STATE_DOC_ID,
         body=state
     )
-    logging.info(f"状态已保存：批次 {state['batch_num']}, 总处理 {state['processed_count']} 条, cursor={state['cursor'][:20]}...")
+    logging.info(f"state saved：count: {state['batch_num']}, total count: {state['processed_count']} , cursor={state['cursor'][:20]}...")
 
 def get_jwt():
-    """获取JWT令牌，添加重试逻辑"""
+    """JWT token + retry"""
     for attempt in range(MAX_RETRIES):
         try:
             resp = requests.post(
@@ -110,10 +104,10 @@ def get_jwt():
             for key in ("accessJwt","access_jwt","jwt","encodedJwt"):
                 if key in data:
                     return data[key]
-            raise RuntimeError(f"无法获取JWT：{resp.text}")
+            raise RuntimeError(f"error JWT：{resp.text}")
         except Exception as e:
             if attempt < MAX_RETRIES - 1:
-                logging.warning(f"JWT获取失败，重试 ({attempt+1}/{MAX_RETRIES}): {e}")
+                logging.warning(f"JWT failed，retry ({attempt+1}/{MAX_RETRIES}): {e}")
                 time.sleep(RETRY_DELAY)
             else:
                 raise
@@ -175,7 +169,6 @@ def geocode_location(loc: str):
     return {"type": "Point", "coordinates": [lon, lat]}
 
 def fetch_batch(state):
-    """使用cursor获取一批数据，返回获取的数据和更新的状态"""
     jwt = get_jwt()
     headers = {
         "Authorization": f"Bearer {jwt}",
@@ -183,20 +176,20 @@ def fetch_batch(state):
         "User-Agent":    "python-requests"
     }
 
-    # 从状态中获取分页参数
+    # page set
     cursor = state.get("cursor")
     
     batch_posts = []
     page_count = 0
-    final_cursor = cursor  # 记录最后一次使用的cursor
+    final_cursor = cursor  # record cursor pos
     
-    # 循环获取页面直到达到批次大小
+    # loop page
     while len(batch_posts) < BATCH_SIZE:
         page_count += 1
         cursor_display = f"{cursor[:15]}..." if cursor else "None"
-        logging.info(f"获取第 {page_count} 页数据 (cursor={cursor_display})")
+        logging.info(f"count : {page_count} page data (cursor={cursor_display})")
         
-        # 准备请求参数
+        # params
         params = {"q": SEARCH_QUERY, "limit": PAGE_SIZE}
         if cursor:
             params["cursor"] = cursor
@@ -208,12 +201,11 @@ def fetch_batch(state):
             posts = data.get("posts", [])
             
             if not posts:
-                logging.info("没有更多数据")
+                logging.info("no more data")
                 break
                 
-            logging.info(f"获取到 {len(posts)} 条原始数据")
+            logging.info(f" {len(posts)} entries")
             
-            # 处理本页数据
             for item in posts:
                 view = item.get("post", item)
                 rec = view.get("record", {})
@@ -246,31 +238,30 @@ def fetch_batch(state):
                 })
                 
                 if len(batch_posts) >= BATCH_SIZE:
-                    logging.info(f"已达到批次大小 ({BATCH_SIZE})")
+                    logging.info(f"reach batch size ({BATCH_SIZE})")
                     break
             
-            # 获取下一页的游标
+            # next page cursor
             new_cursor = data.get("cursor")
             if not new_cursor:
-                logging.info("无下一页游标，已到达数据末尾")
+                logging.info("no more data")
                 break
                 
             final_cursor = cursor = new_cursor
-            time.sleep(1)  # 请求间隔
+            time.sleep(1)
             
         except Exception as e:
-            logging.error(f"获取数据失败: {e}")
+            logging.error(f"failed: {e}")
             break
     
-    logging.info(f"批次完成，获取到 {len(batch_posts)} 条符合条件的数据")
+    logging.info(f"completed: count {len(batch_posts)}")
     
-    # 返回数据和更新的状态 - 只需要保存最后使用的cursor
     return batch_posts, {
         "cursor": final_cursor
     }
 
 def save_to_es(rows):
-    """保存数据到ES"""
+    """ES"""
     if not rows:
         return 0
     
@@ -281,47 +272,39 @@ def save_to_es(rows):
     
     success, errors = helpers.bulk(es, actions, stats_only=True)
     if errors:
-        logging.warning(f"保存时出现 {errors} 个错误")
+        logging.warning(f" {errors} errors")
     
     return success
 
 def process_batches(batch_count=1):
-    """处理指定数量的批次"""
-    # 加载状态
     state = load_state()
     batch_num = state.get("batch_num", 0)
     processed_count = state.get("processed_count", 0)
     
-    logging.info(f"开始处理，当前批次：{batch_num}，已处理：{processed_count}")
+    logging.info(f"current batch {batch_num}，completed：{processed_count}")
     
     total_processed = 0
     
-    # 处理指定数量的批次
     for i in range(batch_count):
         current_batch = batch_num + 1
-        logging.info(f"===== 处理批次 #{current_batch} =====")
+        logging.info(f"===== batch #{current_batch} =====")
         
-        # 获取一批数据
         batch_data, batch_state = fetch_batch(state)
         
         if not batch_data:
-            logging.info(f"批次 #{current_batch} 没有数据，停止处理")
+            logging.info(f"batch #{current_batch} no more data")
             break
         
-        # 保存数据
         saved_count = save_to_es(batch_data)
-        logging.info(f"批次 #{current_batch} 保存了 {saved_count} 条数据")
+        logging.info(f"batch #{current_batch}saved {saved_count} ")
         
-        # 更新状态
         total_processed += saved_count
         state.update(batch_state)
         state["batch_num"] = current_batch
         state["processed_count"] = processed_count + total_processed
         
-        # 保存状态
         save_state(state)
         
-        # 批次间隔
         if i < batch_count - 1:
             time.sleep(2)
     
@@ -333,7 +316,6 @@ def process_batches(batch_count=1):
 
 def main(context=None, data=None):
     try:
-        # 从输入参数中获取批次数量
         batch_count = 1
         if isinstance(data, dict) and "batch_count" in data:
             try:
@@ -343,7 +325,7 @@ def main(context=None, data=None):
                 
         result = process_batches(batch_count)
         
-        return f"完成：处理了 {result['batches_processed']} 个批次，本次索引 {result['records_processed']} 条帖子，总计已处理 {result['total_processed']} 条"
+        return f"completed： {result['batches_processed']} ，{result['records_processed']} ，{result['total_processed']} 条"
     except Exception as e:
-        logging.exception("处理失败")
-        return f"错误：{e}"
+        logging.exception("error")
+        return f"error：{e}"

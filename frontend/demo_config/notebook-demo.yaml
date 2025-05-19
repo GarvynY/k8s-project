@@ -16,9 +16,8 @@ spec:
     spec:
       containers:
         - name: notebook
-          # 这里直接用官方 base-notebook 镜像启动 JupyterLab
           image: jupyter/base-notebook:latest
-          # 去掉 token，允许直接访问（仅限测试）
+          # test -- pass token
           command:
             - start-notebook.sh
             - "--NotebookApp.token="
