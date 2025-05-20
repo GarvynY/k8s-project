@@ -1,0 +1,42 @@
+"mappings": {
+    "properties": {
+      "uri": {
+        "type": "keyword"
+      },
+      "created_at": {
+        "type": "date",
+        "format": "strict_date_time"
+      },
+      "post_time_of_day": {
+        "type": "keyword"
+      },
+      "post_day_of_week": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "standard",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "sentiment_score": {
+        "type": "float"
+      },
+      "emotion_label": {
+        "type": "keyword"
+      },
+      "author": {
+        "type": "keyword"
+      },
+      "location": {
+        "type": "keyword"
+      },
+      "geolocation": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
