@@ -1,0 +1,23 @@
+"mappings": {
+    "properties": {
+      "created_at": {
+        "type":   "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "sentiment_score": {
+        "type": "float"
+      },
+      "emotion_label": {
+        "type": "keyword"
+      },
+      "location": {
+        "type": "keyword"
+      },
+      "geolocation": {
+        "type": "geo_point"
+      },
+      "post_time_of_day": {
+        "type": "keyword"
+      }
+    }
+  }
