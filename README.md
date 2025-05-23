@@ -1,5 +1,6 @@
 # COMP_team_43 Project Deployment
 + This readme file is used to help you deploy our Project.
++ This is a group project and I am responsible for system architecture design and backend development
 
 
 ## Getting well prepared 
